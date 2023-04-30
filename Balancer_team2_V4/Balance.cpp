@@ -52,7 +52,6 @@ int32_t yaw; //yaw angle microrad
 //magnetometer calibration data
 
 
-
 // typedef struct vector
 // {
 // 	int16_t x, y, z;  
@@ -73,10 +72,10 @@ void sendOdometry(){
 void treatCommand(char message[MAX_MESSAGE_LENGTH]){
 
   if(String(message)=="DF"){
-    setPoint_s=700000;
+    setPoint_s=-600000;
   }
   else if(String(message)=="DB"){
-    setPoint_s=-700000;
+    setPoint_s=600000;
   }
   else if(String(message)=="RCC"){
     setPointA+=5000;
@@ -86,6 +85,11 @@ void treatCommand(char message[MAX_MESSAGE_LENGTH]){
   }
   else if(String(message)=="O"){
     sendOdometry();
+  }
+  else if(String(message)=="R"){//Reset odometry
+  x=0;
+  y=0;
+  yaw=0;
   }
 }
 void ComputeOdom(){
@@ -229,20 +233,23 @@ void BalanceSS(){
 
 
   int32_t dutycycle;
-  // //POSITION CONTROL
-  // dutycycle=(-Kssp[0]*thetaCompl-Kssp[1]*thetaRate-Kssp[2]*phi-Kssp[3]*phiRate+nr*setPoint)/1000;
-  // motorSpeed=0.5*dutycycle*MOTOR_SPEED_LIMIT/1000;
-  // // SATURATION
-  // if (motorSpeed > MOTOR_SPEED_LIMIT)
-  // {
-  //   motorSpeed = MOTOR_SPEED_LIMIT;
-  // }
-  // if (motorSpeed < -MOTOR_SPEED_LIMIT)
-  // {
-  //   motorSpeed = -MOTOR_SPEED_LIMIT;
-  // }
+
+  //POSITION CONTROL
+  
+  dutycycle=(-Kssp[0]*thetaCompl-Kssp[1]*thetaRate-Kssp[2]*phi-Kssp[3]*phiRate+nr*setPoint)/1000;
+  motorSpeed=0.5*dutycycle*MOTOR_SPEED_LIMIT/1000;
+  // SATURATION
+  if (motorSpeed > MOTOR_SPEED_LIMIT)
+  {
+    motorSpeed = MOTOR_SPEED_LIMIT;
+  }
+  if (motorSpeed < -MOTOR_SPEED_LIMIT)
+  {
+    motorSpeed = -MOTOR_SPEED_LIMIT;
+  }
 
   //POSITION CONTROL INTEGRAL
+
   // INTEGRAL+=KIsspI*(setPoint-phi)*UPDATE_TIME_MS; // Euler backward integration
   // dutycycle=(-KsspI[0]*thetaCompl-KsspI[1]*thetaRate-KsspI[2]*phi-KsspI[3]*phiRate+INTEGRAL/1000)/1000;
   // motorSpeed=0.5*dutycycle*MOTOR_SPEED_LIMIT/1000;
@@ -258,19 +265,21 @@ void BalanceSS(){
   
 
   //SPEED CONTROL
-  dutycycle=(-Kssp_s[0]*thetaCompl-Kssp_s[1]*thetaRate-Kssp_s[2]*phiRate+nr_s*setPoint_s/1000)/1000;
-  motorSpeed=0.5*dutycycle*MOTOR_SPEED_LIMIT/1000;
-  //SATURATION
-  if (motorSpeed > MOTOR_SPEED_LIMIT)
-  {
-    motorSpeed = MOTOR_SPEED_LIMIT;
-  }
-  if (motorSpeed < -MOTOR_SPEED_LIMIT)
-  {
-    motorSpeed = -MOTOR_SPEED_LIMIT;
-  }
+
+  // dutycycle=(-Kssp_s[0]*thetaCompl-Kssp_s[1]*thetaRate-Kssp_s[2]*phiRate+nr_s*setPoint_s/1000)/1000;
+  // motorSpeed=0.5*dutycycle*MOTOR_SPEED_LIMIT/1000;
+  // //SATURATION
+  // if (motorSpeed > MOTOR_SPEED_LIMIT)
+  // {
+  //   motorSpeed = MOTOR_SPEED_LIMIT;
+  // }
+  // if (motorSpeed < -MOTOR_SPEED_LIMIT)
+  // {
+  //   motorSpeed = -MOTOR_SPEED_LIMIT;
+  // }
 
   //SPEED CONTROL INTEGRAL
+  
   // setPoint_s=0;
   // INTEGRAL+=(setPoint_s-phiRate)*UPDATE_TIME_MS; // Euler backward integration
   // dutycycle=(-KsspI_s[0]*thetaCompl-KsspI_s[1]*thetaRate-KsspI_s[2]*phiRate+KIsspI_s*INTEGRAL/1000)/1000;
@@ -365,24 +374,24 @@ void phiRateObserver()
   previousCountsRight = countsRight;
 
   phi=(phiRight+phiLeft)/2;
-  int16_t Uk= 1000*2*motorSpeed/MOTOR_SPEED_LIMIT;
-  //Serial.println(Uk); 
+  int32_t Uk= motorSpeed;
+  Uk=2000*Uk/MOTOR_SPEED_LIMIT;//weird 2 phase computation because of variable types
 
-  phiRate=XmLY+(L[0]*thetaCompl+L[1]*thetaRate+L[2]*phi)/1000;
-
+  static int32_t XmLY_prev;
   XmLY=(A22mLA12*phiRate+A21mLA11[0]*thetaCompl+A21mLA11[1]*thetaRate+A21mLA11[2]*phi+B2mLB1*Uk)/1000;
-
+  phiRate=XmLY_prev+(L[0]*thetaCompl+L[1]*thetaRate+L[2]*phi)/1000;
+  XmLY_prev=XmLY;
   //Serial.println(XmLY);
   
 
   // Serial.print("UP:");Serial.println(10000);Serial.print("DOWN:");Serial.println(-10000);
-  // Serial.print("phi_observer:");
+  // Serial.print("phiRate:");
   // Serial.println(phiRate);
   // Serial.print("phi_naive:");
-  // Serial.println(-1000*(phi-phi_prev)/UPDATE_TIME_MS);
+  // Serial.println(1000*(phi-phi_prev)/UPDATE_TIME_MS);
   
-  phiRate=1000*(phi-phi_prev)/UPDATE_TIME_MS;
-  phi_prev=phi;
+  // phiRate=1000*(phi-phi_prev)/UPDATE_TIME_MS;
+  // phi_prev=phi;
 }
 
 

@@ -101,7 +101,7 @@ const int32_t STOP_BALANCING_ANGLE = 70000;
 
 const uint8_t dw=5; //distance wheel to center cm
 const uint8_t R=4;//Radius of wheel in cm
-const int16_t ANGLE_OFFSET=50;
+const int16_t ANGLE_OFFSET=45;
 
 
 // These variables will be accessible from your sketch.
@@ -116,24 +116,41 @@ extern Balboa32U4Motors motors;
 extern Balboa32U4Encoders encoders;
 
 // Reduced observer variables
-const int32_t L[3] ={11,2056,393};
-const int32_t A21mLA11[3] ={-593,-1804,-393};
-const int32_t A22mLA12 =741;
-const int32_t B2mLB1 =3970;
+// const int32_t L[3] ={9,1723,256};
+// const int32_t A21mLA11[3] ={-1784,-1476,-256};
+// const int32_t A22mLA12 =741;
+// const int32_t B2mLB1 =3991;
+// const int32_t L[3] ={20,3842,571};
+// const int32_t A21mLA11[3] ={-3292,-3471,-571};
+// const int32_t A22mLA12 =607;
+// const int32_t B2mLB1 =6030;
+const int32_t L[3] ={3,494,73};
+const int32_t A21mLA11[3] ={-909,-318,-73};
+const int32_t A22mLA12 =819;
+const int32_t B2mLB1 =2808;
 // position control variables
-const int32_t Kssp[4] ={-1404,-227,-26,-94};
-const int32_t nr =-26;
+const int32_t Kssp[4] ={-3791,-448,-146,-161};
+const int32_t nr =-146;
+
 // position control integral variables
-const int32_t KsspI[4] ={-2473,-454,-119,-147};
-const int32_t KIsspI =-65;
+const int32_t KsspI[4] ={-3948,-475,-175,-172};
+const int32_t KIsspI =-103;
+
 // speed control variables
-const int32_t Kssp_s[3] ={-1602,-353,-119};
-const int32_t nr_s =-183;
+// const int32_t Kssp_s[3] ={-2655,-293,-109};
+// const int32_t nr_s =-173;
+const int32_t Kssp_s[3] ={-1492,-134,-76};
+const int32_t nr_s =-140;
 
 // speed control integral variables
-const int32_t KsspI_s[3] ={-2272,-409,-136};
-const int32_t KIsspI_s =-92;
-
+// const int32_t KsspI_s[3] ={-3728,-428,-149};
+// const int32_t KIsspI_s =-98;
+// const int32_t KsspI_s[3] ={-3093,-344,-128};
+// const int32_t KIsspI_s =-74;
+// const int32_t KsspI_s[3] ={-2979,-330,-126};
+// const int32_t KIsspI_s =-75;
+const int32_t KsspI_s[3] ={-3188,-361,-136};
+const int32_t KIsspI_s =-94;
 
 
 //calibration data of the magnetometer
