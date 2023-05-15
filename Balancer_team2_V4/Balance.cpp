@@ -2,7 +2,6 @@
 #include <LIS3MDL.h>
 #include "Balance.h"
 
-//#include "vector.h"
 
 int32_t gYZero;
 int32_t angle; // millidegrees
@@ -18,10 +17,8 @@ int32_t phiRate; //milliradian/s
 int32_t thetaComplPrevious;
 int32_t XmLY;
 
-int32_t heading;
 
-
-const int32_t K=1000*0.01/1;
+const int32_t K=1000*0.01/1;// for complementory algorithm
 const int32_t angleOffset=-2500; //milidegrees
 int32_t distanceLeft;
 int32_t phiLeft;//milliradian
@@ -45,37 +42,28 @@ int32_t pos;
 int32_t rot;
 
 //Odometry related variables
-int32_t x; //position in x mm
-int32_t y; //position in y mm
+int32_t x; //position in x 10^-5 m
+int32_t y; //position in y 10^-5 m
 int32_t yaw; //yaw angle microrad
 
-//magnetometer calibration data
 
-
-// typedef struct vector
-// {
-// 	int16_t x, y, z;  
-// } vector;
-
-vector<int16_t> compass;
-
-void sendOdometry(){
-  Serial.print(x/1000); //x;y;yaw\n
+void sendOdometry(){//sending odometry data with format 'x;y;yaw\n'
+  Serial.print(x/1000); //x in cm
   Serial.print(";");
-  Serial.print(y/1000);
+  Serial.print(y/1000); //y in cm
   Serial.print(";");
-  Serial.print(yaw/1000);
+  Serial.print(yaw/1000);//yaw in millirad
   Serial.print("\n");
 }
 
 
-void treatCommand(char message[MAX_MESSAGE_LENGTH]){
+void treatCommand(char message[MAX_MESSAGE_LENGTH]){//function to perfomr actions depending on the message from the serial com
 
   if(String(message)=="DF"){
-    setPoint_s=-600000;
+    setPoint_s=-700000;
   }
   else if(String(message)=="DB"){
-    setPoint_s=600000;
+    setPoint_s=700000;
   }
   else if(String(message)=="RCC"){
     setPointA+=5000;
@@ -105,6 +93,7 @@ void ComputeOdom(){
   lastCountsRightO = countsRightO;
   
   int32_t d=(dl+dr)/2; //distance traveled since last computation 10^-5m =>/1000 to get cm
+
   //we found by experiment that 180° rotation is 28332 in dr-dl, so rule of third gives us a factor of 1000000*pi/28332 to get to microrad
   //we go to microrad because in 10ms the rotation is very small so we need that accuracy
   int32_t dyaw=1000000*PI*(dr-dl)/28332; //yaw rotation since last computation microrad 
@@ -169,66 +158,9 @@ void balanceSetup()
   thetaComplPrevious=1000*atan2(imu.a.z,imu.a.x);
 }
 
+
 // This function contains the core algorithm for balancing a
-// Balboa 32U4 robot.
-void balance()
-{
-  // Adjust toward angle=0 with timescale ~10s, to compensate for
-  // gyro drift.  More advanced AHRS systems use the
-  // accelerometer as a reference for finding the zero angle, but
-  // this is a simpler technique: for a balancing robot, as long
-  // as it is balancing, we know that the angle must be zero on
-  // average, or we would fall over.
-  //angle = angle * 999 / 1000;
-
-  // This variable measures how close we are to our basic
-  // balancing goal - being on a trajectory that would cause us
-  // to rise up to the vertical position with zero speed left at
-  // the top.  This is similar to the fallingAngleOffset used
-  // for LED feedback and a calibration procedure discussed at
-  // the end of Balancer.ino.
-  //
-  // It is in units of millidegrees, like the angle variable, and
-  // you can think of it as an angular estimate of how far off we
-  // are from being balanced.
-  int32_t risingAngleOffset = angleRate * ANGLE_RATE_RATIO + angle;
-
-  // Combine risingAngleOffset with the distance and speed
-  // variables, using the calibration constants defined in
-  // Balance.h, to get our motor response.  Rather than becoming
-  // the new motor speed setting, the response is an amount that
-  // is added to the motor speeds, since a *change* in speed is
-  // what causes the robot to tilt one way or the other.
-  motorSpeed += (
-    + ANGLE_RESPONSE * risingAngleOffset
-    + DISTANCE_RESPONSE * (distanceLeft + distanceRight)
-    + SPEED_RESPONSE * (speedLeft + speedRight)
-    ) / 100 / GEAR_RATIO;
-
-  if (motorSpeed > MOTOR_SPEED_LIMIT)
-  {
-    motorSpeed = MOTOR_SPEED_LIMIT;
-  }
-  if (motorSpeed < -MOTOR_SPEED_LIMIT)
-  {
-    motorSpeed = -MOTOR_SPEED_LIMIT;
-  }
-  int16_t distanceDiff = distanceLeft - distanceRight;
-  int32_t leftSpeed=motorSpeed + distanceDiff * DISTANCE_DIFF_RESPONSE / 100;
-  int32_t rightSpeed= motorSpeed - distanceDiff * DISTANCE_DIFF_RESPONSE / 100;
-
-  // Adjust for differences in the left and right distances; this
-  // will prevent the robot from rotating as it rocks back and
-  // forth due to differences in the motors, and it allows the
-  // robot to perform controlled turns.
-  //int16_t distanceDiff = distanceLeft - distanceRight;
-
-  motors.setSpeeds(
-    leftSpeed,
-    rightSpeed);
-}
-
-
+// Balboa 32U4 robot using a state space model with feedback.
 void BalanceSS(){
 
 
@@ -236,17 +168,17 @@ void BalanceSS(){
 
   //POSITION CONTROL
   
-  dutycycle=(-Kssp[0]*thetaCompl-Kssp[1]*thetaRate-Kssp[2]*phi-Kssp[3]*phiRate+nr*setPoint)/1000;
-  motorSpeed=0.5*dutycycle*MOTOR_SPEED_LIMIT/1000;
-  // SATURATION
-  if (motorSpeed > MOTOR_SPEED_LIMIT)
-  {
-    motorSpeed = MOTOR_SPEED_LIMIT;
-  }
-  if (motorSpeed < -MOTOR_SPEED_LIMIT)
-  {
-    motorSpeed = -MOTOR_SPEED_LIMIT;
-  }
+  // dutycycle=(-Kssp[0]*thetaCompl-Kssp[1]*thetaRate-Kssp[2]*phi-Kssp[3]*phiRate+nr*setPoint)/1000;
+  // motorSpeed=0.5*dutycycle*MOTOR_SPEED_LIMIT/1000;
+  // // SATURATION
+  // if (motorSpeed > MOTOR_SPEED_LIMIT)
+  // {
+  //   motorSpeed = MOTOR_SPEED_LIMIT;
+  // }
+  // if (motorSpeed < -MOTOR_SPEED_LIMIT)
+  // {
+  //   motorSpeed = -MOTOR_SPEED_LIMIT;
+  // }
 
   //POSITION CONTROL INTEGRAL
 
@@ -266,17 +198,17 @@ void BalanceSS(){
 
   //SPEED CONTROL
 
-  // dutycycle=(-Kssp_s[0]*thetaCompl-Kssp_s[1]*thetaRate-Kssp_s[2]*phiRate+nr_s*setPoint_s/1000)/1000;
-  // motorSpeed=0.5*dutycycle*MOTOR_SPEED_LIMIT/1000;
-  // //SATURATION
-  // if (motorSpeed > MOTOR_SPEED_LIMIT)
-  // {
-  //   motorSpeed = MOTOR_SPEED_LIMIT;
-  // }
-  // if (motorSpeed < -MOTOR_SPEED_LIMIT)
-  // {
-  //   motorSpeed = -MOTOR_SPEED_LIMIT;
-  // }
+  dutycycle=(-Kssp_s[0]*thetaCompl-Kssp_s[1]*thetaRate-Kssp_s[2]*phiRate+nr_s*setPoint_s/1000)/1000;
+  motorSpeed=0.5*dutycycle*MOTOR_SPEED_LIMIT/1000;
+  //SATURATION
+  if (motorSpeed > MOTOR_SPEED_LIMIT)
+  {
+    motorSpeed = MOTOR_SPEED_LIMIT;
+  }
+  if (motorSpeed < -MOTOR_SPEED_LIMIT)
+  {
+    motorSpeed = -MOTOR_SPEED_LIMIT;
+  }
 
   //SPEED CONTROL INTEGRAL
   
@@ -328,15 +260,7 @@ void lyingDown()
   }
 }
 
-void integrateGyro()
-{
-  // Convert from full-scale 1000 deg/s to deg/s.
-  angleRate = (imu.g.y - gYZero) / 29;
-
-  angle += angleRate * UPDATE_TIME_MS;
-}
-
-void complemantaryAlgorithm()
+void complemantaryAlgorithm()//function to do sensor fusion to get a better angle measurement
 {
   thetaAccel=1000*atan2(imu.a.z,imu.a.x); //atan2 so div by 0 does not compute a error
   thetaRate = 1000*(PI/180)*(imu.g.y - gYZero) / 29; //compute angle from accelerometer data
@@ -354,7 +278,8 @@ void complemantaryAlgorithm()
   // Serial.println(thetaCompl);
 }
 
-void phiRateObserver()
+void phiRateObserver()//reduced observer algorithm. it works but makes to system less stable, 
+//so we prefer to use phi rate as computed at the end for performance
 {
   static int16_t previousCountsLeft;
   int16_t countsLeft = encoders.getCountsLeft();
@@ -390,26 +315,11 @@ void phiRateObserver()
   // Serial.print("phi_naive:");
   // Serial.println(1000*(phi-phi_prev)/UPDATE_TIME_MS);
   
-  // phiRate=1000*(phi-phi_prev)/UPDATE_TIME_MS;
-  // phi_prev=phi;
+  phiRate=1000*(phi-phi_prev)/UPDATE_TIME_MS;
+  phi_prev=phi;
 }
 
 
-void integrateEncoders()
-{
-  static int16_t lastCountsLeft;
-  int16_t countsLeft = encoders.getCountsLeft();
-  speedLeft = (countsLeft - lastCountsLeft);
-  distanceLeft += countsLeft - lastCountsLeft;
-  lastCountsLeft = countsLeft;
-
-  static int16_t lastCountsRight;
-  int16_t countsRight = encoders.getCountsRight();
-  speedRight = (countsRight - lastCountsRight);
-  distanceRight += countsRight - lastCountsRight;
-  lastCountsRight = countsRight;
-  //Serial.println(distanceLeft);
-}
 
 void balanceDrive(int16_t leftSpeed, int16_t rightSpeed)
 {
@@ -434,12 +344,8 @@ void balanceResetEncoders()
 void balanceUpdateSensors()
 {
   imu.read();
-  read_mag_data();
-  //integrateGyro();
-  //integrateEncoders();
   phiRateObserver();
   complemantaryAlgorithm();
-  //compute_heading();
 }
 
 void balanceUpdate()
@@ -458,7 +364,6 @@ void balanceUpdate()
 
   if (isBalancingStatus)
   {
-    //balance();
     ComputeOdom();
     BalanceSS();
     if (i>50){
@@ -506,80 +411,8 @@ void balanceUpdate()
 }
 
 
-//everything vector related
-void vector_cross(vector<int16_t> *a,vector<int16_t> *b,vector<int16_t> *out)
-{
-  out->x = (a->y * b->z) - (a->z * b->y);
-  out->y = (a->z * b->x) - (a->x * b->z);
-  out->z = (a->x * b->y) - (a->y * b->x);
-}
-float vector_dot(vector<int16_t> *a, vector<int16_t> *b)
-{
-  return (a->x * b->x) + (a->y * b->y) + (a->z * b->z);
-}
-void vector_normalize(vector<int16_t> *a)
-{ 
-  float mag = sqrt(vector_dot(a, a));
-  a->x /= mag;
-  a->y /= mag;
-  a->z /= mag;
-}
 
-
-//everything compass related
-void read_mag_data()
-{
-  static int32_t x, y, z;
-  mag.read();
-  x = (int32_t) mag.m.x - B[0];
-  y = (int32_t) mag.m.y - B[1];
-  z = (int32_t) mag.m.z - B[2];
-  compass.x = (Ainv[0][0] * x + Ainv[0][1] * y + Ainv[0][2] * z)/1000;
-  compass.y = (Ainv[1][0] * x + Ainv[1][1] * y + Ainv[1][2] * z)/1000;
-  compass.z = (Ainv[2][0] * x + Ainv[2][1] * y + Ainv[2][2] * z)/1000;
-};
-
-void compute_heading()
-{ 
-  // int32_t Zl=-sin(thetaCompl/1000)*compass.x+cos(thetaCompl/1000)*compass.z;
-  heading = 1000*180.*atan2(compass.y, compass.z) / PI;
-  if (heading < 0) heading = heading + 360000;
-  //heading=heading(compass);
-  Serial.println(heading);
-};
-//https://github.com/pololu/lsm303-arduino/blob/master/LSM303.h
-// float compute_heading(vector<int16_t> from)
-// {
-//   vector<int16_t> temp_m = {from.x, from.y, from.z};
-
-//   // subtract offset (average of min and max) from magnetometer readings
-//   // temp_m.x -= ((int32_t)m_min.x + m_max.x) / 2;
-//   // temp_m.y -= ((int32_t)m_min.y + m_max.y) / 2;
-//   // temp_m.z -= ((int32_t)m_min.z + m_max.z) / 2;
-
-//   // compute E and N
-//   vector<int16_t> E;
-//   vector<int16_t> N;
-//   vector<int16_t> a={imu.a.x, imu.a.y, imu.a.z};
-
-//   vector_cross(&temp_m, &a, &E);//vector_cross(&from, &a, &E);
-//   vector_normalize(&E);
-//   vector_cross(&a, &E, &N);
-//   // Serial.print(E.x);
-//   // Serial.print("  | ");
-//   // Serial.print(E.y);
-//   // Serial.print("  | ");
-//   // Serial.println(E.z);
-
-//   //vector_normalize(&N);
-
-//   // compute heading
-//   float heading = atan2(vector_dot(&E, &from), vector_dot(&N, &from)) * 180 / PI;
-//   if (heading < 0) heading += 360;
-//   //Serial.println(heading);
-//   return heading;
-// }
-void Drive(){
+void Drive(){//function to rotate the balboa around, basically its a simple proportional controller
   uint16_t leftSpeed, rightSpeed;
   
   if (rot<setPointA){
@@ -621,7 +454,6 @@ void readData(){
     message[message_pos] = '\0';
 
     //Print the message (or do other things)
-    //Serial.println(message);
     treatCommand(message);
     //Reset for the next message
     message_pos = 0;

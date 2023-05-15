@@ -149,7 +149,7 @@ void loop()
   {
     if (enableSong)   { playSong(); }
     if (enableDrive)  { driveAround(); }
-    Drive();
+    Drive();//Drive balboa at higher sampling speed than the control algorithm
   }
   else
   {
